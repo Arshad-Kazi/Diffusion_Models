@@ -179,7 +179,7 @@ def main(args):
             # update the EMA version of the model
             model_ema.update(model)
             total_iters += 1
-
+            
             # print the loss values
             if (total_iters % args.print_freq) == 0:
                 # measure elapsed time (sync all kernels)

@@ -198,7 +198,7 @@ class DDPM(nn.Module):
         return loss
 
     @torch.no_grad()
-    def p_sample(self, x, label, t, t_index):
+    def p_sample(self, x, label, t, time_step):
         """
         Denoise a noisy image at time step t (single step)
         """
@@ -213,7 +213,7 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 11 in DDPM paper.
         """
         
-        mu = sqrt_recip_alphas_t[t_index] * (x - (betas_t[t_index]/sqrt_one_minus_alphas_cumprod_t[t_index]) * self.model(x, label, t))
+        mu = sqrt_recip_alphas_t * (x - ((betas_t/sqrt_one_minus_alphas_cumprod_t) * self.model(x, label, t)))
         
         return mu
 
@@ -234,16 +234,24 @@ class DDPM(nn.Module):
         Fill in the missing code here. See Equation 11 in DDPM paper.
         For a latent diffusion model, an additional decoding step is needed.
         """
-        
-        # Encode with VAE
-        if self.use_vae:
-            imgs = self.vae.encode(imgs)
-            
+                
         # Sample from the model
-        gaussian_noise = torch.randn(shape, device=device)
-        for time_step in range(self.timesteps):
-            imgs = self.p_sample(imgs, labels, torch.tensor([time_step]*len(labels), device=device), time_step) + gaussian_noise
+
+        for time_step in range(self.timesteps-1, -1, -1):
+
+            # Mean Sigma Calculation
+            t = torch.tensor([time_step]*len(labels), device=device)
+            mean = self.p_sample(imgs, labels, t, time_step)
+            sigma = torch.sqrt(self._extract(self.betas, t, imgs.shape))
             
+            # 
+            if time_step==0:
+                imgs = mean
+            else:
+                noise = torch.randn_like(imgs)
+                imgs = mean + noise * sigma
+            
+
         # Decode with VAE
         if self.use_vae:
             imgs = self.vae.decode(imgs)
