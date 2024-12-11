@@ -276,5 +276,5 @@ if __name__ == "__main__":
         help="path to a checkpoint (default: none)",
     )
     args = parser.parse_args()
-    args.config = "./configs/mnist.yaml"
+    args.config = "./configs/afhq.yaml"
     main(args)

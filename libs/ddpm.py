@@ -180,19 +180,16 @@ class DDPM(nn.Module):
         """
         
         
+        if self.use_vae:
+            x_start = self.vae.encoder(x_start)
+
         # return loss
         if noise is None:
             noise = torch.randn_like(x_start)
 
-        if self.use_vae:
-            x_start = self.vae.encode(x_start)
-
         # Algorithm 1 line 5 in DDPM paper
         x_t = self.q_sample(x_start, t, noise)
         pred_noise = self.model(x_t, label, t)
-
-        if self.use_vae:
-            x_start = self.vae.decode(x_start)
 
         loss = F.mse_loss(pred_noise, noise)
         return loss
@@ -254,7 +251,7 @@ class DDPM(nn.Module):
 
         # Decode with VAE
         if self.use_vae:
-            imgs = self.vae.decode(imgs)
+            imgs = self.vae.decoder(imgs)
 
         # postprocessing the images
         imgs = self.postprocess(imgs)
