@@ -179,7 +179,6 @@ class DDPM(nn.Module):
         For a latent diffusion model, an additional encoding step is needed.
         """
         
-        
         if self.use_vae:
             x_start = self.vae.encoder(x_start)
 
