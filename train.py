@@ -29,7 +29,8 @@ from libs import (
     DDPM,
     save_checkpoint,
     ModelEMA,
-    AverageMeter
+    AverageMeter, 
+    calculate_fid_given_paths
 )
 
 
@@ -58,6 +59,7 @@ def main(args):
         )
     if not os.path.exists(ckpt_folder):
         os.mkdir(ckpt_folder)
+    
     # tensorboard writer
     tb_writer = SummaryWriter(os.path.join(ckpt_folder, "logs"))
 
@@ -144,6 +146,9 @@ def main(args):
 
         # the main training loop
         for iter_idx, batch in enumerate(train_loader):
+            # 
+            continue 
+            
             # fetching imgs and their labels
             img, label = batch
             img = img.to(device)
@@ -231,12 +236,33 @@ def main(args):
                 imgs = model_ema.module.p_sample_loop(sample_labels)
                 all_imgs.append(imgs)
 
+            os.makedirs(os.path.join(ckpt_folder, f"samples-{epoch}"), exist_ok=True)
+            for idx, imgs in enumerate(all_imgs):
+                for label, img in enumerate(imgs):
+                    save_image(
+                        img,
+                        os.path.join(
+                            ckpt_folder, f"samples-{epoch}", f"sample-{label}-{idx}.png"
+                        ),
+                        nrow=num_classes,
+                    )
+            exit()
+            
             all_imgs = torch.cat(all_imgs, dim=0)
             save_image(
                 all_imgs,
                 os.path.join(ckpt_folder, 'sample-{:d}.png'.format(epoch)),
                 nrow=cfg["model"]["num_classes"]
             )
+            
+            # Calculate FID score
+            fid_paths = ["~/cs_hw4/data/afhq/short1/", "~/cs_hw4/data/afhq/short3/"]
+            fid_batch_size = 2
+            fid_device = torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
+            fid_dims = 2048
+            fid_num_workers = 1
+            if args.calc_fid_score:
+                calculate_fid_given_paths(fid_paths, fid_batch_size, fid_device, fid_dims, fid_num_workers)
 
     # wrap up
     tb_writer.close()
@@ -250,7 +276,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Train DDPM for Image Generation"
     )
-    #parser.add_argument("config", metavar="DIR", help="path to a config file")
+    parser.add_argument("config", metavar="DIR", help="path to a config file")
     parser.add_argument(
         "-p",
         "--print-freq",
@@ -276,5 +302,6 @@ if __name__ == "__main__":
         help="path to a checkpoint (default: none)",
     )
     args = parser.parse_args()
-    args.config = "./configs/afhq.yaml"
+    # args.config = "./configs/afhq.yaml"
+    args.calc_fid_score = True
     main(args)
