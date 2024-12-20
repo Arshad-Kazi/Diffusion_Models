@@ -30,7 +30,7 @@ from libs import (
     save_checkpoint,
     ModelEMA,
     AverageMeter, 
-    calculate_fid_given_paths
+    get_fid_score
 )
 
 
@@ -284,14 +284,9 @@ def main(args):
                             nrow=1,
                         )
             
-            ## FID calculation
-            fid_paths = [os.path.join(ckpt_folder, f"samples-{epoch}"), os.path.join(ckpt_folder, f"real-samples")]
-            fid_batch_size = 2
-            fid_device = torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
-            fid_dims = 2048
-            fid_num_workers = 1
-            
-            score = calculate_fid_given_paths(fid_paths, fid_batch_size, fid_device, fid_dims, fid_num_workers)
+            ## FID calculation         
+            score = get_fid_score(os.path.join(ckpt_folder, f"samples-{epoch}"), 
+                        os.path.join(ckpt_folder, f"real-samples"))
             print("FID score: ", score)
 
     # wrap up
