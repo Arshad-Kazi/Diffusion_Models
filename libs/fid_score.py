@@ -14,6 +14,7 @@ from torch.nn.functional import adaptive_avg_pool2d
 from .inception import InceptionV3
 
 
+
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png"}
 
 class ImagePathDataset(torch.utils.data.Dataset):

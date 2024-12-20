@@ -70,11 +70,17 @@ def main(args):
         cfg["dataset"]["split"],
         cfg["dataset"]["data_folder"],
     )
+    test_dataset, _, _ = build_dataset(
+        cfg["dataset"]["name"],
+        "test",
+        cfg["dataset"]["data_folder"],
+    )
     cfg["model"]["num_classes"] = num_classes
     cfg["model"]["img_shape"] = img_shape
     pprint(cfg)
     # data loaders
     train_loader = build_dataloader(train_dataset, **cfg["loader"])
+    test_loader = build_dataloader(test_dataset, **cfg["loader"])
 
     """3. create model and optimizer"""
     # model
@@ -146,9 +152,6 @@ def main(args):
 
         # the main training loop
         for iter_idx, batch in enumerate(train_loader):
-            # 
-            continue 
-            
             # fetching imgs and their labels
             img, label = batch
             img = img.to(device)
@@ -235,18 +238,6 @@ def main(args):
                 # yet eventually stablize samples during late stage of training
                 imgs = model_ema.module.p_sample_loop(sample_labels)
                 all_imgs.append(imgs)
-
-            os.makedirs(os.path.join(ckpt_folder, f"samples-{epoch}"), exist_ok=True)
-            for idx, imgs in enumerate(all_imgs):
-                for label, img in enumerate(imgs):
-                    save_image(
-                        img,
-                        os.path.join(
-                            ckpt_folder, f"samples-{epoch}", f"sample-{label}-{idx}.png"
-                        ),
-                        nrow=num_classes,
-                    )
-            exit()
             
             all_imgs = torch.cat(all_imgs, dim=0)
             save_image(
@@ -256,13 +247,52 @@ def main(args):
             )
             
             # Calculate FID score
-            fid_paths = ["~/cs_hw4/data/afhq/short1/", "~/cs_hw4/data/afhq/short3/"]
+            if not args.calc_fid_score:
+                continue 
+            
+            ## Save generated samples
+            os.makedirs(os.path.join(ckpt_folder, f"samples-{epoch}"), exist_ok=True)
+            for idx, imgs in enumerate(all_imgs):
+                for label, img in enumerate(imgs):
+                    save_image(
+                        img,
+                        os.path.join(
+                            ckpt_folder, f"samples-{epoch}", f"sample-{label}-{idx}.png"
+                        ),
+                        nrow=1,
+                    )
+            
+            ## Save equal number of real samples
+            real_imgs = []
+            for iter_idx, batch in enumerate(test_loader):
+                img, label = batch
+                real_imgs.append(img)
+                if iter_idx * cfg["loader"]["batch_size"] >= len(all_imgs) - 1:
+                    break
+            
+            real_imgs = real_imgs[:len(all_imgs)]
+            
+            if not os.path.exists(os.path.join(ckpt_folder, "real-samples")):
+                os.makedirs(os.path.join(ckpt_folder, "real-samples"), exist_ok=True)
+                for idx, imgs in enumerate(real_imgs):
+                    for img_idx, img in enumerate(imgs):
+                        save_image(
+                            img,
+                            os.path.join(
+                                ckpt_folder, "real-samples", f"sample-{idx * len(imgs) + img_idx}.png"
+                            ),
+                            nrow=1,
+                        )
+            
+            ## FID calculation
+            fid_paths = [os.path.join(ckpt_folder, f"samples-{epoch}"), os.path.join(ckpt_folder, f"real-samples")]
             fid_batch_size = 2
             fid_device = torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
             fid_dims = 2048
             fid_num_workers = 1
-            if args.calc_fid_score:
-                calculate_fid_given_paths(fid_paths, fid_batch_size, fid_device, fid_dims, fid_num_workers)
+            
+            score = calculate_fid_given_paths(fid_paths, fid_batch_size, fid_device, fid_dims, fid_num_workers)
+            print("FID score: ", score)
 
     # wrap up
     tb_writer.close()
@@ -301,7 +331,11 @@ if __name__ == "__main__":
         metavar="PATH",
         help="path to a checkpoint (default: none)",
     )
+    parser.add_argument(
+        "--calc-fid-score",
+        action="store_true",
+        help="calculate FID score"
+    )
     args = parser.parse_args()
     # args.config = "./configs/afhq.yaml"
-    args.calc_fid_score = True
     main(args)
